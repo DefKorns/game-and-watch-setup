@@ -129,8 +129,8 @@ adapterSelector() {
 
 }
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
-
-packages=("gcc-arm-none-eabi" "binutils-arm-none-eabi" "python3" "libftdi1" "git" "make")
+# binutils-arm-none-eabi python3 libhidapi-hidraw0 libftdi1 libftdi1-2
+packages=("gcc-arm-none-eabi" "binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
 ## Run the run_install function if sany of the libraries are missing
 dpkg -s "${packages[@]}" >/dev/null 2>&1 || libraryChecker
 
@@ -156,7 +156,7 @@ echo "Cloning and building the Backup & Restore Tools:"
 git clone https://github.com/ghidraninja/game-and-watch-backup/
 cd game-and-watch-backup || exit
 # The -j option specifies the number of jobs (commands) to run simultaneously. Example: make -j8
-make -j"$(nproc)"
+# make -j"$(nproc)"
 cd ..
 
 echo "Cloning and building Flashloader:"
@@ -164,8 +164,9 @@ git clone https://github.com/ghidraninja/game-and-watch-flashloader
 
 cd game-and-watch-flashloader || exit
 
+# make download_sdk -j"$(nproc)"
 # See notes above for -j option.
-make -j"$(nproc)"
+make -j"$(nproc)" GCC_PATH=/usr/bin
 
 cd ..
 
