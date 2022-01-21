@@ -129,18 +129,15 @@ adapterSelector() {
 
 }
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
-# binutils-arm-none-eabi python3 libhidapi-hidraw0 libftdi1 libftdi1-2
 packages=("gcc-arm-none-eabi" "binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
 ## Run the run_install function if sany of the libraries are missing
 dpkg -s "${packages[@]}" >/dev/null 2>&1 || libraryChecker
-
-# sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi python3 libftdi1 git make
 
 echo "Downloading OpenOCD..."
 [ ! -f "$PWD/openocd-git.deb.zip" ] && wget https://nightly.link/kbeckmann/ubuntu-openocd-git-builder/workflows/docker/master/openocd-git.deb.zip
 
 echo "Unpacking download..."
-unzip openocd-git.deb.zip
+unzip -u openocd-git.deb.zip
 sudo dpkg -i openocd-git_*_amd64.deb
 
 echo "Installing OpenOCD..."
@@ -164,7 +161,6 @@ git clone https://github.com/ghidraninja/game-and-watch-flashloader
 
 cd game-and-watch-flashloader || exit
 
-# make download_sdk -j"$(nproc)"
 # See notes above for -j option.
 [ -f "/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/opt/gcc-arm-none-eabi/bin" || [ -f "/usr/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/usr/bin"
 make -j"$(nproc)" "$GCC_PATH"
