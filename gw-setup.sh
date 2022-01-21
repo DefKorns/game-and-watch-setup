@@ -29,16 +29,16 @@ initStep() {
             ./1_sanity_check.sh
             echo ""
             OPENOCD="/opt/openocd-git/bin/openocd"
-            ./2_backup_flash.sh "$ADAPTER"
+            ./2_backup_flash.sh "$ADAPTER" "$TARGET"
             echo ""
             OPENOCD="/opt/openocd-git/bin/openocd"
-            ./3_backup_internal_flash.sh "$ADAPTER"
+            ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
             echo ""
             OPENOCD="/opt/openocd-git/bin/openocd"
-            ./4_unlock_device.sh "$ADAPTER"
+            ./4_unlock_device.sh "$ADAPTER" "$TARGET"
             echo ""
             OPENOCD="/opt/openocd-git/bin/openocd"
-            ./5_restore.sh "$ADAPTER"
+            ./5_restore.sh "$ADAPTER" "$TARGET"
             cd ..
             ;;
         "Retro-Go")
@@ -101,6 +101,32 @@ flashSize() {
         *) echo "invalid option $REPLY" ;;
         esac
     done
+}
+
+adapterSelector() {
+    PS3='Please select your ARM debug probe: '
+
+    adapters=("J-Link" "RaspberryPi" "ST-LINK" "Quit")
+    select adp in "${adapters[@]}"; do
+        case $adp in
+        "J-Link")
+            ADAPTER="jlink"
+            ;;
+        "RaspberryPi")
+            ADAPTER="rpi"
+            ;;
+        "ST-LINK")
+            ADAPTER="stlink"
+            ;;
+        "Quit")
+            exit
+            ;;
+        *) echo "invalid option $REPLY" ;;
+        esac
+        echo "You choose $adp as your ARM debug probe"
+        initStep
+    done
+
 }
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
 
@@ -169,25 +195,22 @@ cd game-and-watch-retro-go || exit
 #make -j2 flash
 cd ..
 
-PS3='Please select your ARM debug probe: '
+PS3='Please select your Game & Watch type: '
 
-adapters=("J-Link" "RaspberryPi" "ST-LINK" "Quit")
-select adp in "${adapters[@]}"; do
-    case $adp in
-    "J-Link")
-        ADAPTER="jlink"
+gwVersion=("Mario" "Zelda" "Quit")
+select gw in "${gwVersion[@]}"; do
+    case $gw in
+    "Mario")
+        TARGET="mario"
         ;;
-    "RaspberryPi")
-        ADAPTER="rpi"
-        ;;
-    "ST-LINK")
-        ADAPTER="stlink"
+    "Zelda")
+        TARGET="zelda"
         ;;
     "Quit")
         exit
         ;;
     *) echo "invalid option $REPLY" ;;
     esac
-    echo "You chose $adp as your ARM debug probe"
-    initStep
+    echo "You choose $gw as your Game & Watch"
+    adapterSelector
 done
