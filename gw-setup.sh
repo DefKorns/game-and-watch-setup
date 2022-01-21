@@ -137,7 +137,7 @@ dpkg -s "${packages[@]}" >/dev/null 2>&1 || libraryChecker
 # sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi python3 libftdi1 git make
 
 echo "Downloading OpenOCD..."
-wget https://nightly.link/kbeckmann/ubuntu-openocd-git-builder/workflows/docker/master/openocd-git.deb.zip
+[ ! -f "$PWD/openocd-git.deb.zip" ] && wget https://nightly.link/kbeckmann/ubuntu-openocd-git-builder/workflows/docker/master/openocd-git.deb.zip
 
 echo "Unpacking download..."
 unzip openocd-git.deb.zip
@@ -166,7 +166,8 @@ cd game-and-watch-flashloader || exit
 
 # make download_sdk -j"$(nproc)"
 # See notes above for -j option.
-make -j"$(nproc)" GCC_PATH=/usr/bin
+[ -f "/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/opt/gcc-arm-none-eabi/bin" || [ -f "/usr/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/usr/bin"
+make -j"$(nproc)" "$GCC_PATH"
 
 cd ..
 
