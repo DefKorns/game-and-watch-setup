@@ -1,7 +1,8 @@
 #!/bin/bash
 export OPENOCD="/opt/openocd-git/bin/openocd"
-export GCC_PATH=/opt/gcc-arm-none-eabi/bin
+export GCC_PATH="$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux/bin"
 export PATH=$GCC_PATH:$PATH
+
 libraryChecker() {
     ## Prompt the user
     read -rp "Do you want to install missing libraries? [Y/n]: " answer
@@ -26,7 +27,7 @@ initStep() {
             echo ""
             cd game-and-watch-backup || exit
             OPENOCD="/opt/openocd-git/bin/openocd"
-            ./1_sanity_check.sh
+            ./1_sanity_check.sh "$ADAPTER" "$TARGET"
             echo ""
             OPENOCD="/opt/openocd-git/bin/openocd"
             ./2_backup_flash.sh "$ADAPTER" "$TARGET"
@@ -65,8 +66,9 @@ initStep() {
                 exit
             fi
 
-            flashSize
-            make -j"$(nproc)" "$LF" flash
+            # flashSize
+            # make -j"$(nproc)" "$LF" flash
+            make -j"$(nproc)" flash
             cd ..
             ;;
         "Exit")
@@ -77,31 +79,31 @@ initStep() {
     done
 }
 
-flashSize() {
-    local PS3='Please select where to flash your games: '
-    local options=("16MB External Flash" "Internal Flash" "Exit")
-    local opt
-    select opt in "${options[@]}"; do
-        case $opt in
-        "16MB External Flash")
-            echo "Flashing To 16MB External Flash:"
-            echo ""
-            LF="LARGE_FLASH=1"
-            break
-            ;;
-        "Internal Flash")
-            echo "Flashing To Internal Flash:"
-            echo ""
-            LF=""
-            break
-            ;;
-        "Exit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-    done
-}
+# flashSize() {
+#     local PS3='Please select where to flash your games: '
+#     local options=("16MB External Flash" "Internal Flash" "Exit")
+#     local opt
+#     select opt in "${options[@]}"; do
+#         case $opt in
+#         "16MB External Flash")
+#             echo "Flashing To 16MB External Flash:"
+#             echo ""
+#             LF="LARGE_FLASH=1"
+#             break
+#             ;;
+#         "Internal Flash")
+#             echo "Flashing To Internal Flash:"
+#             echo ""
+#             LF=""
+#             break
+#             ;;
+#         "Exit")
+#             exit
+#             ;;
+#         *) echo "invalid option $REPLY" ;;
+#         esac
+#     done
+# }
 
 adapterSelector() {
     PS3='Please select your ARM debug probe: '
@@ -129,7 +131,7 @@ adapterSelector() {
 
 }
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
-packages=("gcc-arm-none-eabi" "binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
+packages=("binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
 ## Run the run_install function if sany of the libraries are missing
 dpkg -s "${packages[@]}" >/dev/null 2>&1 || libraryChecker
 
@@ -152,45 +154,16 @@ sudo apt-get -y -f install
 echo "Cloning and building the Backup & Restore Tools:"
 git clone https://github.com/ghidraninja/game-and-watch-backup/
 cd game-and-watch-backup || exit
-# The -j option specifies the number of jobs (commands) to run simultaneously. Example: make -j8
-# make -j"$(nproc)"
 cd ..
 
-echo "Cloning and building Flashloader:"
-git clone https://github.com/ghidraninja/game-and-watch-flashloader
 
-cd game-and-watch-flashloader || exit
-
-# See notes above for -j option.
-[ -f "/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/opt/gcc-arm-none-eabi/bin" || [ -f "/usr/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/usr/bin"
-make -j"$(nproc)" "$GCC_PATH"
-
-cd ..
+echo "Extracting gcc-arm-none-eabi"
+[ ! -f "$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" ] && wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+tar -xf gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
 
 echo "Cloning and building Retro-Go"
-
 git clone --recurse-submodules https://github.com/kbeckmann/game-and-watch-retro-go
 cd game-and-watch-retro-go || exit
-
-# Place GB roms in `./roms/gb/`, NES roms in `./roms/nes/`, SMS roms in `./roms/sms/`, GG roms in `./roms/gg/`, PCE roms in `./roms/pce/`:
-# cp /path/to/rom.gb ./roms/gb/
-# cp /path/to/rom.nes ./roms/nes/
-# cp /path/to/rom.sms ./roms/sms/
-# cp /path/to/rom.nes ./roms/gg/
-# cp /path/to/pce.nes ./roms/pce/
-
-# On a Mac running make < v4 you have to manually download the HAL package by running:
-# make download_sdk
-
-#Uncomment the line below if you have HAL Driver Errors when building.
-#git clone --depth 1 https://github.com/STMicroelectronics/STM32CubeH7 && ln -s STM32CubeH7/Drivers Drivers
-
-# Build and program external and internal flash.
-# Note: If you are using the 16MB external flash, build using:
-#           make -j8 LARGE_FLASH=1 flash
-#       A custom flash size may be specified with the EXTFLASH_SIZE variable.
-
-#make -j2 flash
 cd ..
 
 PS3='Please select your Game & Watch type: '
