@@ -4,79 +4,121 @@ export GCC_PATH="$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux/bin"
 export PATH=$GCC_PATH:$PATH
 
 libraryChecker() {
-    ## Prompt the user
-    read -rp "Do you want to install missing libraries? [Y/n]: " answer
-    ## Set the default value if no answer was given
-    answer=${answer:Y}
-    ## If the answer matches y or Y, install
-    echo "Installing required tools..."
-    [[ $answer =~ [Yy] ]] && sudo apt-get install "${packages[@]}"
+  ## Prompt the user
+  read -rp "Do you want to install missing libraries? [Y/n]: " answer
+  ## Set the default value if no answer was given
+  answer=${answer:Y}
+  ## If the answer matches y or Y, install
+  echo "Installing required tools..."
+  [[ $answer =~ [Yy] ]] && sudo apt-get install "${packages[@]}"
 }
 
 initStep() {
-    clear
-    local PS3='Please select what do you want to do: '
-    local options=("Backup & Restore Tools" "Retro-Go" "Exit")
-    local opt
-    select opt in "${options[@]}"; do
-        case $opt in
-        "Backup & Restore Tools")
-            echo "Before continue please check the correct pinout https://imgur.com/6IxzPi9. Press return when ready!"
-            read -rn 1
-            echo "Running Backup & Restore Tools Sanity Checks:"
-            echo ""
-            cd game-and-watch-backup || exit
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./1_sanity_check.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./2_backup_flash.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./4_unlock_device.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./5_restore.sh "$ADAPTER" "$TARGET"
-            cd ..
-            ;;
-        "Retro-Go")
-            echo "Running Retro-Go:"
-            echo ""
-            cd game-and-watch-retro-go || exit
-            roms="gb nes sms gg pce"
-            for rom in $roms; do
-                files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
-                has_games="false"
-                if [ "$files" != "0" ]; then
-                    has_games="true"
-                    break
-                fi
-            done
-            if [ "${has_games}" = "false" ]; then
-                echo "Please place extracted roms on the correct directory."
-                echo ""
-                echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
-                echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
-                echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
-                echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
-                echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
-                exit
-            fi
+  clear
+  local PS3='Please select what do you want to do: '
+  local options=("Backup & Restore Tools" "Retro-Go" "Exit")
+  local opt
+  select opt in "${options[@]}"; do
+    case $opt in
+    "Backup & Restore Tools")
+      echo "Before continue please check the correct pinout https://imgur.com/6IxzPi9. Press return when ready!"
+      read -rn 1
+      echo "Running Backup & Restore Tools Sanity Checks:"
+      echo ""
+      cd game-and-watch-backup || exit
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./1_sanity_check.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./2_backup_flash.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./4_unlock_device.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./5_restore.sh "$ADAPTER" "$TARGET"
+      cd ..
+      ;;
+    "Retro-Go")
+      echo "Running Retro-Go:"
+      echo ""
+      cd game-and-watch-retro-go || exit
+      roms="gb nes sms gg pce"
+      for rom in $roms; do
+        files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
+        has_games="false"
+        if [ "$files" != "0" ]; then
+          has_games="true"
+          break
+        fi
+      done
+      if [ "${has_games}" = "false" ]; then
+        echo "Please place extracted roms on the correct directory."
+        echo ""
+        echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
+        echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
+        echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
+        echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
+        echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
+        exit
+      fi
 
-            # flashSize
-            # make -j"$(nproc)" "$LF" flash
-            make -j"$(nproc)" flash
-            cd ..
-            ;;
-        "Exit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-    done
+      # flashSize
+      # make -j"$(nproc)" "$LF" flash
+      make -j"$(nproc)" flash
+      cd ..
+      ;;
+    "Custom Firmware")
+      echo "Custom firmware for the newer Nintendo Game and Watch consoles."
+      echo ""
+     if [ "$TARGET" == "mario" ]; then
+       echo "The two strings are the same $TARGET"
+     fi
+     if [ "${TARGET}" == "zelda" ]; then
+       echo "The two strings are the same $TARGET"
+     fi
+     
+      # make clean
+      # make PATCH_PARAMS="--device=mario --internal-only" flash_patched
+
+      # # in the retro-go repo
+      # make clean
+      # make -j8 INTFLASH_BANK=2 flash
+      # cd game-and-watch-patch || exit
+      # roms="gb nes sms gg pce"
+      # for rom in $roms; do
+      #     files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
+      #     has_games="false"
+      #     if [ "$files" != "0" ]; then
+      #         has_games="true"
+      #         break
+      #     fi
+      # done
+      # if [ "${has_games}" = "false" ]; then
+      #     echo "Please place extracted roms on the correct directory."
+      #     echo ""
+      #     echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
+      #     echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
+      #     echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
+      #     echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
+      #     echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
+      #     exit
+      # fi
+
+      # # flashSize
+      # # make -j"$(nproc)" "$LF" flash
+      # make -j"$(nproc)" flash
+      # cd ..
+      ;;
+    "Exit")
+      exit
+      ;;
+    *) echo "invalid option $REPLY" ;;
+    esac
+  done
 }
 
 # flashSize() {
@@ -106,28 +148,28 @@ initStep() {
 # }
 
 adapterSelector() {
-    PS3='Please select your ARM debug probe: '
+  PS3='Please select your ARM debug probe: '
 
-    adapters=("J-Link" "RaspberryPi" "ST-LINK" "Quit")
-    select adp in "${adapters[@]}"; do
-        case $adp in
-        "J-Link")
-            ADAPTER="jlink"
-            ;;
-        "RaspberryPi")
-            ADAPTER="rpi"
-            ;;
-        "ST-LINK")
-            ADAPTER="stlink"
-            ;;
-        "Quit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-        echo "You choose $adp as your ARM debug probe"
-        initStep
-    done
+  adapters=("J-Link" "RaspberryPi" "ST-LINK" "Quit")
+  select adp in "${adapters[@]}"; do
+    case $adp in
+    "J-Link")
+      ADAPTER="jlink"
+      ;;
+    "RaspberryPi")
+      ADAPTER="rpi"
+      ;;
+    "ST-LINK")
+      ADAPTER="stlink"
+      ;;
+    "Quit")
+      exit
+      ;;
+    *) echo "invalid option $REPLY" ;;
+    esac
+    echo "You choose $adp as your ARM debug probe"
+    initStep
+  done
 
 }
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
@@ -156,6 +198,16 @@ git clone https://github.com/ghidraninja/game-and-watch-backup/
 cd game-and-watch-backup || exit
 cd ..
 
+echo "Cloning Custom Firmware:"
+git clone https://github.com/BrianPugh/game-and-watch-patch
+
+# cd game-and-watch-flashloader || exit
+
+# # See notes above for -j option.
+# [ -f "/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/opt/gcc-arm-none-eabi/bin" || [ -f "/usr/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/usr/bin"
+# make -j"$(nproc)" "$GCC_PATH"
+
+# cd ..
 
 echo "Extracting gcc-arm-none-eabi"
 [ ! -f "$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" ] && wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
@@ -170,18 +222,18 @@ PS3='Please select your Game & Watch type: '
 
 gwVersion=("Mario" "Zelda" "Quit")
 select gw in "${gwVersion[@]}"; do
-    case $gw in
-    "Mario")
-        TARGET="mario"
-        ;;
-    "Zelda")
-        TARGET="zelda"
-        ;;
-    "Quit")
-        exit
-        ;;
-    *) echo "invalid option $REPLY" ;;
-    esac
-    echo "You choose $gw as your Game & Watch"
-    adapterSelector
+  case $gw in
+  "Mario")
+    TARGET="mario"
+    ;;
+  "Zelda")
+    TARGET="zelda"
+    ;;
+  "Quit")
+    exit
+    ;;
+  *) echo "invalid option $REPLY" ;;
+  esac
+  echo "You choose $gw as your Game & Watch"
+  adapterSelector
 done
