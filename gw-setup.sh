@@ -1,214 +1,281 @@
 #!/bin/bash
+# PATHS
 export OPENOCD="/opt/openocd-git/bin/openocd"
-export GCC_PATH=/opt/gcc-arm-none-eabi/bin
+export GCC_PATH="$PWD/gcc-arm-none-eabi-10.3-2021.10/bin"
 export PATH=$GCC_PATH:$PATH
-libraryChecker() {
-    ## Prompt the user
-    read -rp "Do you want to install missing libraries? [Y/n]: " answer
-    ## Set the default value if no answer was given
-    answer=${answer:Y}
-    ## If the answer matches y or Y, install
-    echo "Installing required tools..."
-    [[ $answer =~ [Yy] ]] && sudo apt-get install "${packages[@]}"
-}
 
-initStep() {
-    clear
-    local PS3='Please select what do you want to do: '
-    local options=("Backup & Restore Tools" "Retro-Go" "Exit")
-    local opt
-    select opt in "${options[@]}"; do
-        case $opt in
-        "Backup & Restore Tools")
-            echo "Before continue please check the correct pinout https://imgur.com/6IxzPi9. Press return when ready!"
-            read -rn 1
-            echo "Running Backup & Restore Tools Sanity Checks:"
-            echo ""
-            cd game-and-watch-backup || exit
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./1_sanity_check.sh
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./2_backup_flash.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./4_unlock_device.sh "$ADAPTER" "$TARGET"
-            echo ""
-            OPENOCD="/opt/openocd-git/bin/openocd"
-            ./5_restore.sh "$ADAPTER" "$TARGET"
-            cd ..
-            ;;
-        "Retro-Go")
-            echo "Running Retro-Go:"
-            echo ""
-            cd game-and-watch-retro-go || exit
-            roms="gb nes sms gg pce"
-            for rom in $roms; do
-                files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
-                has_games="false"
-                if [ "$files" != "0" ]; then
-                    has_games="true"
-                    break
-                fi
-            done
-            if [ "${has_games}" = "false" ]; then
-                echo "Please place extracted roms on the correct directory."
-                echo ""
-                echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
-                echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
-                echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
-                echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
-                echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
-                exit
-            fi
-
-            flashSize
-            make -j"$(nproc)" "$LF" flash
-            cd ..
-            ;;
-        "Exit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-    done
-}
-
-flashSize() {
-    local PS3='Please select where to flash your games: '
-    local options=("16MB External Flash" "Internal Flash" "Exit")
-    local opt
-    select opt in "${options[@]}"; do
-        case $opt in
-        "16MB External Flash")
-            echo "Flashing To 16MB External Flash:"
-            echo ""
-            LF="LARGE_FLASH=1"
-            break
-            ;;
-        "Internal Flash")
-            echo "Flashing To Internal Flash:"
-            echo ""
-            LF=""
-            break
-            ;;
-        "Exit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-    done
-}
-
-adapterSelector() {
-    PS3='Please select your ARM debug probe: '
-
-    adapters=("J-Link" "RaspberryPi" "ST-LINK" "Quit")
-    select adp in "${adapters[@]}"; do
-        case $adp in
-        "J-Link")
-            ADAPTER="jlink"
-            ;;
-        "RaspberryPi")
-            ADAPTER="rpi"
-            ;;
-        "ST-LINK")
-            ADAPTER="stlink"
-            ;;
-        "Quit")
-            exit
-            ;;
-        *) echo "invalid option $REPLY" ;;
-        esac
-        echo "You choose $adp as your ARM debug probe"
-        initStep
-    done
-
-}
+# VARIABLES
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
-packages=("gcc-arm-none-eabi" "binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
-## Run the run_install function if sany of the libraries are missing
-dpkg -s "${packages[@]}" >/dev/null 2>&1 || libraryChecker
-
-echo "Downloading OpenOCD..."
-[ ! -f "$PWD/openocd-git.deb.zip" ] && wget https://nightly.link/kbeckmann/ubuntu-openocd-git-builder/workflows/docker/master/openocd-git.deb.zip
-
-echo "Unpacking download..."
-unzip -u openocd-git.deb.zip
-sudo dpkg -i openocd-git_*_amd64.deb
-
-echo "Installing OpenOCD..."
-sudo apt-get -y -f install
-
-# You must configure this for the debug adapter you're using!
-# stlink is the default, but you may set it to something else, such as jlink, or rpi (Raspberry Pi):
-# export ADAPTER=jlink
-# export ADAPTER=rpi
-# export ADAPTER=stlink
-
-echo "Cloning and building the Backup & Restore Tools:"
-git clone https://github.com/ghidraninja/game-and-watch-backup/
-cd game-and-watch-backup || exit
-# The -j option specifies the number of jobs (commands) to run simultaneously. Example: make -j8
-# make -j"$(nproc)"
-cd ..
-
-echo "Cloning and building Flashloader:"
-git clone https://github.com/ghidraninja/game-and-watch-flashloader
-
-cd game-and-watch-flashloader || exit
-
-# See notes above for -j option.
-[ -f "/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/opt/gcc-arm-none-eabi/bin" || [ -f "/usr/bin/arm-none-eabi-gcc" ] && GCC_PATH="GCC_PATH=/usr/bin"
-make -j"$(nproc)" "$GCC_PATH"
-
-cd ..
-
-echo "Cloning and building Retro-Go"
-
-git clone --recurse-submodules https://github.com/kbeckmann/game-and-watch-retro-go
-cd game-and-watch-retro-go || exit
-
-# Place GB roms in `./roms/gb/`, NES roms in `./roms/nes/`, SMS roms in `./roms/sms/`, GG roms in `./roms/gg/`, PCE roms in `./roms/pce/`:
-# cp /path/to/rom.gb ./roms/gb/
-# cp /path/to/rom.nes ./roms/nes/
-# cp /path/to/rom.sms ./roms/sms/
-# cp /path/to/rom.nes ./roms/gg/
-# cp /path/to/pce.nes ./roms/pce/
-
-# On a Mac running make < v4 you have to manually download the HAL package by running:
-# make download_sdk
-
-#Uncomment the line below if you have HAL Driver Errors when building.
-#git clone --depth 1 https://github.com/STMicroelectronics/STM32CubeH7 && ln -s STM32CubeH7/Drivers Drivers
-
-# Build and program external and internal flash.
-# Note: If you are using the 16MB external flash, build using:
-#           make -j8 LARGE_FLASH=1 flash
-#       A custom flash size may be specified with the EXTFLASH_SIZE variable.
-
-#make -j2 flash
-cd ..
-
-PS3='Please select your Game & Watch type: '
-
+packages=("binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
+openocd=(openocd-git_*_amd64.deb)
+options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
+chips=("4Mb" "64Mb" "Quit")
 gwVersion=("Mario" "Zelda" "Quit")
-select gw in "${gwVersion[@]}"; do
-    case $gw in
-    "Mario")
-        TARGET="mario"
-        ;;
-    "Zelda")
-        TARGET="zelda"
-        ;;
-    "Quit")
-        exit
-        ;;
+
+installDependencies() {
+  ## Prompt the user
+  read -rp "Do you want to install missing libraries? [Y/n]: " answer
+  ## Set the default value if no answer was given
+  answer=${answer:Y}
+  ## If the answer matches y or Y, install
+  echo "Installing required tools..."
+  [[ $answer =~ [Yy] ]] && sudo apt-get install "${packages[@]}"
+}
+
+toolsStep() {
+  clear
+  PS3='Please select what do you want to do: '
+  # options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
+  echo ""
+  # local opt
+
+  select opt in "${options[@]}"; do
+    case $opt in
+    "Backup & Restore Tools")
+      echo "Before continue please check the correct pinout https://imgur.com/6IxzPi9. Press return when ready!"
+      read -rn 1
+      echo "Running Backup & Restore Tools Sanity Checks:"
+      echo ""
+      cd game-and-watch-backup || exit
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./1_sanity_check.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./2_backup_flash.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./4_unlock_device.sh "$ADAPTER" "$TARGET"
+      echo ""
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      ./5_restore.sh "$ADAPTER" "$TARGET"
+      cd ..
+      ;;
+    "Retro-Go")
+      echo "Running Retro-Go:"
+      echo ""
+
+      cd game-and-watch-retro-go || exit
+      romChecker
+      # uncomment next 2 lines assuming you have upgraded the external flash to something larger than 4MB.
+
+      # flashSize
+      # make -j"$(nproc)" "$LF" flash
+
+      # comment next line if you use the ones above.
+      make -j"$(nproc)" flash
+      cd ..
+      ;;
+    "Custom Firmware")
+      echo "Custom firmware for the newer Nintendo Game and Watch consoles."
+      echo ""
+
+      cd game-and-watch-patch || exit
+      romChecker
+      make clean
+
+      [ "$TARGET" == "mario" ] && make PATCH_PARAMS="--device=mario --internal-only" flash_patched
+
+      if [ "$TARGET" == "zelda" ]; then
+        [ "$CHIP" == "4Mb" ] && make PATCH_PARAMS="--device=zelda --extended --no-la --no-sleep-images --extended" flash
+        [ "$CHIP" == "64Mb" ] && make PATCH_PARAMS="--device=zelda" LARGE_FLASH=1 flash_patched
+      fi
+
+      cd ..
+      cd game-and-watch-retro-go || exit
+      make clean
+
+      [ "$TARGET" == "mario" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
+
+      if [ "$TARGET" == "zelda" ]; then
+        [ "$CHIP" == "4Mb" ] && make -j"$(nproc)" INTFLASH_BANK=2 EXTFLASH_SIZE=1802240 EXTFLASH_OFFSET=851968 GNW_TARGET=zelda EXTENDED=1 flash
+        [ "$CHIP" == "64Mb" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB=60 EXTFLASH_OFFSET=4194304 INTFLASH_BANK=2 flash
+      fi
+      ;;
+    "Exit")
+      exit
+      ;;
     *) echo "invalid option $REPLY" ;;
     esac
-    echo "You choose $gw as your Game & Watch"
-    adapterSelector
-done
+  done
+}
+
+romChecker() {
+  roms="col gb gg gw nes pce sg sms"
+  for rom in $roms; do
+    files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
+    has_games="false"
+    if [ "$files" != "0" ]; then
+      has_games="true"
+      break
+    fi
+  done
+
+  if [ "${has_games}" = "false" ]; then
+    echo "Didn't found any rom files!!"
+    echo ""
+    echo "Please place extracted roms on the correct directory and try again."
+    echo ""
+    echo "COL roms in 'game-and-watch-retro-go/roms/col/';"
+    echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
+    echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
+    echo "GW roms in 'game-and-watch-retro-go/roms/gw/';"
+    echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
+    echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
+    echo "SG roms in 'game-and-watch-retro-go/roms/sg/';"
+    echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
+    echo ""
+    exit
+  fi
+}
+
+optionsDefaultValue() {
+  local item i=0 numItems=$#
+
+  # Print numbered menu items, based on the arguments passed.
+  for item; do # Short for: for item in "$@"; do
+    printf '%s\n' "$((++i))) $item"
+  done >&2 # Print to stderr, as `select` does.
+
+  # Prompt the user for the index of the desired item.
+  while :; do
+    printf %s "${PS3-#? }" >&2 # Print the prompt string to stderr, as `select` does.
+    read -r index
+    # Make sure that the input is either empty or that a valid index was entered.
+    [[ -z $index ]] && break # empty input
+    ((index >= 1 && index <= numItems)) 2>/dev/null || {
+      echo "Invalid selection. Please try again." >&2
+      continue
+    }
+    break
+  done
+
+  # Output the selected item, if any.
+  [[ -n $index ]] && printf %s "${@:index:1}"
+
+}
+
+chipSize() {
+  echo ""
+  echo "Select the size of your flash chip.
+4 is the default:"
+  echo ""
+
+  # chips=("4Mb" "64Mb" "Quit")
+  chp=$(optionsDefaultValue "${chips[@]}")
+
+  case $chp in
+  "" | "4Mb")
+    CHIP="4Mb"
+    ;;
+  "64Mb")
+    CHIP="64Mb"
+    ;;
+  "Quit")
+    exit
+    ;;
+  esac
+  echo ""
+  echo "You selected a $CHIP Flash Chip"
+  selectDebugger
+}
+
+selectDebugger() {
+  echo ""
+  echo "You must configure this for the debug adapter you're using!
+stlink is the default:"
+  echo ""
+
+  adapters=("J-Link" "Raspberry Pi" "ST-LINK" "Quit")
+  adp=$(optionsDefaultValue "${adapters[@]}")
+
+  case $adp in
+  "J-Link")
+    ADAPTER="jlink"
+    ;;
+  "Raspberry Pi")
+    ADAPTER="rpi"
+    ;;
+  "" | "ST-LINK")
+    ADAPTER="stlink"
+    ;;
+  "Quit")
+    exit
+    ;;
+  esac
+  echo ""
+  echo "You choose $ADAPTER as your ARM debug probe"
+  toolsStep
+}
+
+selectGWType() {
+  echo ""
+  echo "Please select your Game & Watch type.
+Mario is the default:"
+  echo ""
+
+  # gwVersion=("Mario" "Zelda" "Quit")
+  gw=$(optionsDefaultValue "${gwVersion[@]}")
+
+  case $gw in
+  "" | "Mario")
+    TARGET="mario"
+    ;;
+  "Zelda")
+    TARGET="zelda"
+    chipSize
+    ;;
+  "Quit")
+    exit
+    ;;
+  *) echo "invalid option $REPLY" ;;
+  esac
+  echo ""
+  echo "You choose $TARGET as your Game & Watch"
+  selectDebugger
+}
+
+getRequirements() {
+  ## Run the installDependencies function if any of the libraries are missing.
+  dpkg -s "${packages[@]}" >/dev/null 2>&1 || installDependencies
+
+  [ ! -f "$PWD/openocd-git.deb.zip" ] && echo "Downloading OpenOCD..."
+  [ ! -f "$PWD/openocd-git.deb.zip" ] && wget https://nightly.link/kbeckmann/ubuntu-openocd-git-builder/workflows/docker/master/openocd-git.deb.zip
+
+  if [ ! -e "${openocd[0]}" ]; then
+    echo "Unpacking download..."
+    unzip -u openocd-git.deb.zip
+  fi
+
+  dpkg -s openocd-git >/dev/null 2>&1 || sudo dpkg -i openocd-git_*_amd64.deb
+  dpkg -s openocd-git >/dev/null 2>&1 || echo "Installing OpenOCD..."
+  dpkg -s openocd-git >/dev/null 2>&1 || sudo apt-get -y -f install
+
+  if [ ! -d "game-and-watch-backup" ]; then
+    echo "Cloning and building the Backup & Restore Tools:"
+    git clone https://github.com/ghidraninja/game-and-watch-backup
+    cd game-and-watch-backup || exit
+    cd ..
+  fi
+
+  if [ ! -d "game-and-watch-patch" ]; then
+    echo "Cloning Custom Firmware:"
+    git clone https://github.com/BrianPugh/game-and-watch-patch
+
+  fi
+
+  [ ! -f "$GCC_PATH/arm-none-eabi-gcc" ] && echo "Extracting gcc-arm-none-eabi"
+  [ ! -f "$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" ] && wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+  [ ! -f "$GCC_PATH/arm-none-eabi-gcc" ] && tar -xf gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+
+  if [ ! -d "game-and-watch-retro-go" ]; then
+    echo "Cloning and building Retro-Go"
+    git clone --recurse-submodules https://github.com/kbeckmann/game-and-watch-retro-go
+  fi
+}
+
+getRequirements
+
+selectGWType
