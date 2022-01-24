@@ -3,14 +3,19 @@
 export OPENOCD="/opt/openocd-git/bin/openocd"
 export GCC_PATH="$PWD/gcc-arm-none-eabi-10.3-2021.10/bin"
 export PATH=$GCC_PATH:$PATH
+export PATH=$OPENOCD:$PATH
 
 # VARIABLES
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
-packages=("binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make")
+adapters=("J-Link" "Raspberry Pi" "ST-LINK" "Quit")
+packages=("binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make" "python3-pip")
 openocd=(openocd-git_*_amd64.deb)
 options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
 chips=("4Mb" "64Mb" "Quit")
 gwVersion=("Mario" "Zelda" "Quit")
+cfwDir="$PWD/game-and-watch-patch"
+backupDir="$PWD/game-and-watch-backup/backups"
+backupErr="Can't find any backup files. In order to proceed you need to extract them from your gnw system, using 'Backup & Restore Tools'"
 
 installDependencies() {
   ## Prompt the user
@@ -22,13 +27,24 @@ installDependencies() {
   [[ $answer =~ [Yy] ]] && sudo apt-get install "${packages[@]}"
 }
 
+errorMsg() {
+  echo "$backupErr"
+  exit
+}
+
+retroGo() {
+  [ "$DEVICE" == "mario" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
+
+  if [ "$DEVICE" == "zelda" ]; then
+    [ "$CHIP" == "4Mb" ] && make -j"$(nproc)" INTFLASH_BANK=2 EXTFLASH_SIZE=1802240 EXTFLASH_OFFSET=851968 GNW_TARGET=zelda EXTENDED=1 flash
+    [ "$CHIP" == "64Mb" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB=60 EXTFLASH_OFFSET=4194304 INTFLASH_BANK=2 flash
+  fi
+}
+
 toolsStep() {
   clear
   PS3='Please select what do you want to do: '
-  # options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
   echo ""
-  # local opt
-
   select opt in "${options[@]}"; do
     case $opt in
     "Backup & Restore Tools")
@@ -38,19 +54,19 @@ toolsStep() {
       echo ""
       cd game-and-watch-backup || exit
       OPENOCD="/opt/openocd-git/bin/openocd"
-      ./1_sanity_check.sh "$ADAPTER" "$TARGET"
+      ./1_sanity_check.sh "$ADAPTER" "$DEVICE"
       echo ""
       OPENOCD="/opt/openocd-git/bin/openocd"
-      ./2_backup_flash.sh "$ADAPTER" "$TARGET"
+      ./2_backup_flash.sh "$ADAPTER" "$DEVICE"
       echo ""
       OPENOCD="/opt/openocd-git/bin/openocd"
-      ./3_backup_internal_flash.sh "$ADAPTER" "$TARGET"
+      ./3_backup_internal_flash.sh "$ADAPTER" "$DEVICE"
       echo ""
       OPENOCD="/opt/openocd-git/bin/openocd"
-      ./4_unlock_device.sh "$ADAPTER" "$TARGET"
+      ./4_unlock_device.sh "$ADAPTER" "$DEVICE"
       echo ""
       OPENOCD="/opt/openocd-git/bin/openocd"
-      ./5_restore.sh "$ADAPTER" "$TARGET"
+      ./5_restore.sh "$ADAPTER" "$DEVICE"
       cd ..
       ;;
     "Retro-Go")
@@ -59,40 +75,42 @@ toolsStep() {
 
       cd game-and-watch-retro-go || exit
       romChecker
-      # uncomment next 2 lines assuming you have upgraded the external flash to something larger than 4MB.
-
-      # flashSize
-      # make -j"$(nproc)" "$LF" flash
-
-      # comment next line if you use the ones above.
-      make -j"$(nproc)" flash
+      make clean
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      GCC_PATH="../gcc-arm-none-eabi-10.3-2021.10/bin"
+      retroGo
       cd ..
+      exit
       ;;
     "Custom Firmware")
       echo "Custom firmware for the newer Nintendo Game and Watch consoles."
       echo ""
 
+      [ ! -f "$backupDir/internal_flash_backup_${DEVICE}.bin" ] || [ ! -f "$backupDir/flash_backup_${DEVICE}.bin" ] && errorMsg
+
+      [ ! -f "$cfwDir/flash_backup_${DEVICE}.bin" ] && cp "$backupDir/flash_backup_${DEVICE}.bin" "$cfwDir/flash_backup_${DEVICE}.bin"
+      [ ! -f "$cfwDir/internal_flash_backup_${DEVICE}.bin" ] && cp "$backupDir/internal_flash_backup_${DEVICE}.bin" "$cfwDir/internal_flash_backup_${DEVICE}.bin"
+
       cd game-and-watch-patch || exit
-      romChecker
+
       make clean
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      [ "$DEVICE" == "mario" ] && make PATCH_PARAMS="--device=mario --internal-only" ADAPTER="$ADAPTER" flash_patched
 
-      [ "$TARGET" == "mario" ] && make PATCH_PARAMS="--device=mario --internal-only" flash_patched
-
-      if [ "$TARGET" == "zelda" ]; then
-        [ "$CHIP" == "4Mb" ] && make PATCH_PARAMS="--device=zelda --extended --no-la --no-sleep-images --extended" flash
-        [ "$CHIP" == "64Mb" ] && make PATCH_PARAMS="--device=zelda" LARGE_FLASH=1 flash_patched
+      if [ "$DEVICE" == "zelda" ]; then
+        [ "$CHIP" == "4Mb" ] && make PATCH_PARAMS="--device=zelda --extended --no-la --no-sleep-images --extended" ADAPTER="$ADAPTER" flash
+        [ "$CHIP" == "64Mb" ] && make PATCH_PARAMS="--device=zelda" ADAPTER="$ADAPTER" LARGE_FLASH=1 flash_patched
       fi
 
       cd ..
+
       cd game-and-watch-retro-go || exit
+      romChecker
       make clean
-
-      [ "$TARGET" == "mario" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
-
-      if [ "$TARGET" == "zelda" ]; then
-        [ "$CHIP" == "4Mb" ] && make -j"$(nproc)" INTFLASH_BANK=2 EXTFLASH_SIZE=1802240 EXTFLASH_OFFSET=851968 GNW_TARGET=zelda EXTENDED=1 flash
-        [ "$CHIP" == "64Mb" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB=60 EXTFLASH_OFFSET=4194304 INTFLASH_BANK=2 flash
-      fi
+      OPENOCD="/opt/openocd-git/bin/openocd"
+      GCC_PATH="../gcc-arm-none-eabi-10.3-2021.10/bin"
+      retroGo
+      exit
       ;;
     "Exit")
       exit
@@ -163,7 +181,6 @@ chipSize() {
 4 is the default:"
   echo ""
 
-  # chips=("4Mb" "64Mb" "Quit")
   chp=$(optionsDefaultValue "${chips[@]}")
 
   case $chp in
@@ -187,8 +204,6 @@ selectDebugger() {
   echo "You must configure this for the debug adapter you're using!
 stlink is the default:"
   echo ""
-
-  adapters=("J-Link" "Raspberry Pi" "ST-LINK" "Quit")
   adp=$(optionsDefaultValue "${adapters[@]}")
 
   case $adp in
@@ -216,15 +231,14 @@ selectGWType() {
 Mario is the default:"
   echo ""
 
-  # gwVersion=("Mario" "Zelda" "Quit")
   gw=$(optionsDefaultValue "${gwVersion[@]}")
 
   case $gw in
   "" | "Mario")
-    TARGET="mario"
+    DEVICE="mario"
     ;;
   "Zelda")
-    TARGET="zelda"
+    DEVICE="zelda"
     chipSize
     ;;
   "Quit")
@@ -233,7 +247,7 @@ Mario is the default:"
   *) echo "invalid option $REPLY" ;;
   esac
   echo ""
-  echo "You choose $TARGET as your Game & Watch"
+  echo "You choose $DEVICE as your Game & Watch"
   selectDebugger
 }
 
@@ -263,7 +277,10 @@ getRequirements() {
   if [ ! -d "game-and-watch-patch" ]; then
     echo "Cloning Custom Firmware:"
     git clone https://github.com/BrianPugh/game-and-watch-patch
-
+    cd game-and-watch-patch || exit
+    pip3 install -r requirements.txt
+    make download_sdk
+    cd ..
   fi
 
   [ ! -f "$GCC_PATH/arm-none-eabi-gcc" ] && echo "Extracting gcc-arm-none-eabi"
