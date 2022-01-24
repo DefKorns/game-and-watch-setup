@@ -18,3 +18,9 @@ bin-release/
 # information for Eclipse / Flash Builder.
 gw-setup.code-workspace
 .vscode/settings.json
+game-and-watch-*/
+
+openocd-git.deb.zip
+openocd-git_0.11.0-515-g1ad6ed38b_amd64.deb
+gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+gcc-arm-none-eabi-10.3-2021.10/

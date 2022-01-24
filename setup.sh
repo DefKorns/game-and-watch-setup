@@ -185,10 +185,10 @@ chipSize() {
 
   case $chp in
   "" | "4Mb")
-    CHIP="4Mb"
+    CHIP="4"
     ;;
   "64Mb")
-    CHIP="64Mb"
+    CHIP="64"
     ;;
   "Quit")
     exit
@@ -295,4 +295,56 @@ getRequirements() {
 
 getRequirements
 
-selectGWType
+if [ -n "${1}" ]; then
+  case "${1}" in
+  "jlink" | "rpi" | "stlink")
+    ADAPTER="${1}"
+    ;;
+  *)
+    exit
+    ;;
+  esac
+fi
+
+if [ -n "${2}" ]; then
+  case "${2}" in
+  "mario")
+    DEVICE="mario"
+    ;;
+  "zelda")
+    DEVICE="zelda"
+    [ -z "${3}" ] && chipSize "$DEVICE"
+    ;;
+  *)
+    exit
+    ;;
+  esac
+fi
+
+if [ -n "${3}" ]; then
+  case "${3}" in
+  "4Mb")
+    CHIP="4Mb"
+    ;;
+  "64Mb")
+    CHIP="64Mb"
+    ;;
+  *)
+    exit
+    ;;
+  esac
+  echo ""
+  echo "You selected a $CHIP Flash Chip"
+fi
+
+
+
+echo "[ADAPTER]: $ADAPTER"
+echo "[DEVICE]: $DEVICE"
+echo "[CHIP]: $CHIP"
+
+# echo "$(($num1-$num2))"
+
+[ -z "${DEVICE}" ] && selectGWType
+[ -z "${ADAPTER}" ] && selectDebugger
+[ -z "${CHIP}" ] && chipSize
