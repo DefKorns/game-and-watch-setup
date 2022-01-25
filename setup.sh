@@ -8,13 +8,13 @@ export PATH=$OPENOCD:$PATH
 # VARIABLES
 #For best compatibility, please use Ubuntu 20.04 (0.10.0) or greater!
 adpArgs=("jlink" "rpi" "stlink")
-chpArg=("4" "64" "128" "256" "512" "4Mb" "64Mb" "128Mb" "256Mb" "512Mb")
+chpArg=("4" "8" "16" "32" "64" "128" "256" "512" "4Mb" "8Mb" "16Mb" "32Mb" "64Mb" "128Mb" "256Mb" "512Mb")
 devArg=("mario" "zelda")
 adapters=("J-Link" "Raspberry Pi" "ST-LINK" "Quit")
 packages=("binutils-arm-none-eabi" "python3" "libhidapi-hidraw0" "libftdi1" "libftdi1-2" "git" "make" "python3-pip")
 openocd=(openocd-git_*_amd64.deb)
 options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
-chips=("4Mb" "64Mb" "128Mb" "256Mb" "512Mb" "Quit")
+chips=("4Mb" "8Mb" "16Mb" "32Mb" "64Mb" "128Mb" "256Mb" "512Mb" "Quit")
 gwVersion=("Mario" "Zelda" "Quit")
 cfwDir="$PWD/game-and-watch-patch"
 backupDir="$PWD/game-and-watch-backup/backups"
@@ -73,23 +73,31 @@ retroGo() {
   OPENOCD="/opt/openocd-git/bin/openocd"
   GCC_PATH="../gcc-arm-none-eabi-10.3-2021.10/bin"
   [ "$DEVICE" == "mario" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
+  # Confirm usage with externalflash
+  #   if [ "$DEVICE" == "mario" ]; then
+  #   [ "$CHIP" -eq "1" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
+  #   [ "$CHIP" -ge "8" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB="$CHIP" INTFLASH_BANK=2 flash
+  # fi
 
   if [ "$DEVICE" == "zelda" ]; then
     [ "$CHIP" == "4" ] && make -j"$(nproc)" INTFLASH_BANK=2 EXTFLASH_SIZE=1802240 EXTFLASH_OFFSET=851968 GNW_TARGET=zelda EXTENDED=1 flash
-    [ "$CHIP" -ge "64" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB="$CHIP" EXTFLASH_OFFSET=4194304 INTFLASH_BANK=2 flash
+    [ "$CHIP" -ge "8" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB="$EXTFLASH_SIZE" EXTFLASH_OFFSET=4194304 INTFLASH_BANK=2 flash
   fi
   cd ..
 }
 
 romChecker() {
   roms="col gb gg gw nes pce sg sms"
+  has_games="false"
+
   for rom in $roms; do
     files=$(find "roms/$rom" -maxdepth 1 -type f -name "*.$rom" 2>/dev/null | wc -l)
-    has_games="false"
+
     if [ "$files" != "0" ]; then
       has_games="true"
       break
     fi
+
   done
 
   if [ "${has_games}" = "false" ]; then
@@ -147,6 +155,9 @@ getRequirements() {
   if [ ! -d "game-and-watch-retro-go" ]; then
     echo "Cloning and building Retro-Go"
     git clone --recurse-submodules https://github.com/kbeckmann/game-and-watch-retro-go
+    cd game-and-watch-retro-go || exit
+    pip3 install -r requirements.txt
+    cd ..
   fi
   rm -r "remove_me_after_first_run"
 }
@@ -158,7 +169,7 @@ selectGWType() {
   "" | "mario")
     DEVICE="mario"
     GNW="Mario"
-    CHIP="4"
+    CHIP="1"
     ;;
   "zelda")
     DEVICE="zelda"
@@ -200,6 +211,15 @@ chipSize() {
   "" | "4mb" | "4")
     CHIP="4"
     ;;
+  "8mb" | "8")
+    CHIP="8"
+    ;;
+  "16mb" | "16")
+    CHIP="16"
+    ;;
+  "32mb" | "32")
+    CHIP="32"
+    ;;
   "64mb" | "64")
     CHIP="64"
     ;;
@@ -216,7 +236,7 @@ chipSize() {
     exit
     ;;
   esac
-  [ "$CHIP" -gt "4" ] && CHIP=$((CHIP - 4))
+  [ "$CHIP" -gt "4" ] && EXTFLASH_SIZE=$((CHIP - 4))
 }
 
 toolsSelectionMenu() {
@@ -225,7 +245,7 @@ toolsSelectionMenu() {
 
   echo ""
   echo "#################################################################################################"
-  echo "     You're using a ${DEBUGGER} adapter on a Game and Watch ${GNW} version with $((CHIP + 4))Mb chip "
+  echo "     You're using a ${DEBUGGER} adapter on a Game and Watch ${GNW} version with ${CHIP}Mb chip "
   echo "#################################################################################################"
   echo ""
 
