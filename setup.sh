@@ -220,7 +220,7 @@ chipSize() {
 }
 
 toolsSelectionMenu() {
-  # clear
+  clear
   PS3='Please select what do you want to do: '
 
   echo ""
