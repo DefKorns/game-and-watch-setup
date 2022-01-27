@@ -1,4 +1,20 @@
 #!/bin/bash
+# shellcheck disable=SC2068
+#  Copyright (c) 2022 DefKorns (https://defkorns.github.io/LICENSE)
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 # PATHS
 export OPENOCD="/opt/openocd-git/bin/openocd"
 export GCC_PATH="$PWD/gcc-arm-none-eabi-10.3-2021.10/bin"
@@ -16,9 +32,17 @@ openocd=(openocd-git_*_amd64.deb)
 options=("Backup & Restore Tools" "Retro-Go" "Custom Firmware" "Exit")
 chips=("4Mb" "8Mb" "16Mb" "32Mb" "64Mb" "128Mb" "256Mb" "512Mb" "Quit")
 gwVersion=("Mario" "Zelda" "Quit")
-cfwDir="$PWD/game-and-watch-patch"
-backupDir="$PWD/game-and-watch-backup/backups"
+retroGoVersion=("Original" "NewUI" "Quit")
+gwB="game-and-watch-backup"
+gwP="game-and-watch-patch"
+gwR="game-and-watch-retro-go"
+cfwDir="$PWD/$gwP"
+BACKUP_DIR="$gwB/backups"
+NEW_BACKUP_DIR="GW-flash-backup"
+backupDir="$PWD/$BACKUP_DIR"
 backupErr="Can't find any backup files. In order to proceed you need to extract them from your gnw system, using 'Backup & Restore Tools'"
+gccArmNoneEabi="https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2"
+# ! wget -q --spider "$gccArmNoneEabi" >/dev/null 2>&1 && gccArmNoneEabi="https://mega.nz/file/lbpgHB7S#NMRZgnNieoNG15idyv-187Cfn284yBV6fgcx8BTSAtQ"
 
 installDependencies() {
   ## Prompt the user
@@ -35,8 +59,45 @@ errorMsg() {
   exit
 }
 
-helptext() {
-  echo "Usage: $0 <Adapter: jlink or stlink or rpi> <mario or zelda> <ChipSize: 4Mb or 64Mb or 128Mb or 256Mb or 512Mb>"
+helpText() {
+  # Display Help
+  echo "Add description of the script functions here."
+  echo
+  echo "Syntax: $0 [-h|b|c|clean|backup]"
+  echo "options:"
+  echo "        -b     Backups internal flash files to a new folder outside the repository"
+  echo "  --backup     Backups internal flash files to a new folder outside the repository"
+  echo "        -c     Removes all repositories."
+  echo "   --clean     Removes all repositories."
+  echo "        -h     Print this Help."
+  echo "    --help     Print this Help."
+  # echo "        -V     Print software version and exit."
+  echo
+  echo "Usage: $0 <Adapter: jlink or stlink or rpi> <mario or zelda> <ChipSize: 4Mb or 8Mb or 16Mb or 32Mb or 64Mb or 128Mb or 256Mb or 512Mb>"
+  echo "Usage: $0 --backup <To backups internal flash files to a new folder outside the repository>"
+  echo "Usage: $0 --clean <To remove all repositories>"
+  echo "Usage: $0 --clean <To remove all repositories>"
+}
+
+remove() {
+  for f in $@; do
+    [ -f "$f" ] || [ -d "$f" ] && rm -rf "$f"
+  done
+}
+
+backupIntFlashFolder() {
+  if [ -d "$BACKUP_DIR" ]; then
+    if [ "$(ls -A $BACKUP_DIR)" ]; then
+      [ ! -d "$NEW_BACKUP_DIR" ] && mkdir -p "$NEW_BACKUP_DIR"
+      cp -r "$BACKUP_DIR" "$NEW_BACKUP_DIR/$(date +%Y%m%d%H%M%S)"
+    fi
+  fi
+}
+
+cleanDir() {
+  backupIntFlashFolder
+  remove "game-and-watch-backup" "game-and-watch-retro-go" "gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" openocd-git_*_amd64.deb "openocd-git.deb.zip"
+
 }
 
 optionsDefaultValue() {
@@ -72,12 +133,11 @@ retroGo() {
 
   OPENOCD="/opt/openocd-git/bin/openocd"
   GCC_PATH="../gcc-arm-none-eabi-10.3-2021.10/bin"
-  [ "$DEVICE" == "mario" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
-  # Confirm usage with externalflash
-  #   if [ "$DEVICE" == "mario" ]; then
-  #   [ "$CHIP" -eq "1" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
-  #   [ "$CHIP" -ge "8" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB="$CHIP" INTFLASH_BANK=2 flash
-  # fi
+
+  if [ "$DEVICE" == "mario" ]; then
+    [ "$CHIP" == "1" ] && make -j"$(nproc)" INTFLASH_BANK=2 flash
+    [ "$CHIP" -ge "8" ] && make -j"$(nproc)" EXTFLASH_SIZE_MB="$CHIP" INTFLASH_BANK=2 flash
+  fi
 
   if [ "$DEVICE" == "zelda" ]; then
     [ "$CHIP" == "4" ] && make -j"$(nproc)" INTFLASH_BANK=2 EXTFLASH_SIZE=1802240 EXTFLASH_OFFSET=851968 GNW_TARGET=zelda EXTENDED=1 flash
@@ -105,16 +165,22 @@ romChecker() {
     echo ""
     echo "Please place extracted roms on the correct directory and try again."
     echo ""
-    echo "COL roms in 'game-and-watch-retro-go/roms/col/';"
-    echo "GB roms in 'game-and-watch-retro-go/roms/gb/';"
-    echo "GG roms in 'game-and-watch-retro-go/roms/gg/';"
-    echo "GW roms in 'game-and-watch-retro-go/roms/gw/';"
-    echo "NES roms in 'game-and-watch-retro-go/roms/nes/';"
-    echo "PCE roms in 'game-and-watch-retro-go/roms/pce/';"
-    echo "SG roms in 'game-and-watch-retro-go/roms/sg/';"
-    echo "SMS roms in 'game-and-watch-retro-go/roms/sms/';"
+    for r in $roms; do
+      rt="${r^^}"
+      echo "$rt roms in '$gwR/roms/$r/';"
+    done
     echo ""
     exit
+  fi
+}
+
+installRetroGo() {
+  if [ ! -d "game-and-watch-retro-go" ]; then
+    echo "Cloning and building Retro-Go"
+    git clone --recurse-submodules "${1}"
+    cd game-and-watch-retro-go || exit
+    pip3 install -r requirements.txt
+    cd ..
   fi
 }
 
@@ -134,12 +200,12 @@ getRequirements() {
   dpkg -s openocd-git >/dev/null 2>&1 || echo "Installing OpenOCD..."
   dpkg -s openocd-git >/dev/null 2>&1 || sudo apt-get -y -f install
 
-  if [ ! -d "game-and-watch-backup" ]; then
+  if [ ! -d "$gwB" ]; then
     echo "Cloning and building the Backup & Restore Tools:"
     git clone https://github.com/ghidraninja/game-and-watch-backup
   fi
 
-  if [ ! -d "game-and-watch-patch" ]; then
+  if [ ! -d "$gwP" ]; then
     echo "Cloning Custom Firmware:"
     git clone https://github.com/BrianPugh/game-and-watch-patch
     cd game-and-watch-patch || exit
@@ -149,17 +215,11 @@ getRequirements() {
   fi
 
   [ ! -f "$GCC_PATH/arm-none-eabi-gcc" ] && echo "Extracting gcc-arm-none-eabi"
-  [ ! -f "$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" ] && wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
+  [ ! -f "$PWD/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" ] && wget "$gccArmNoneEabi"
   [ ! -f "$GCC_PATH/arm-none-eabi-gcc" ] && tar -xf gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2
 
-  if [ ! -d "game-and-watch-retro-go" ]; then
-    echo "Cloning and building Retro-Go"
-    git clone --recurse-submodules https://github.com/kbeckmann/game-and-watch-retro-go
-    cd game-and-watch-retro-go || exit
-    pip3 install -r requirements.txt
-    cd ..
-  fi
-  rm -r "remove_me_after_first_run"
+  retroGoSelectionMenu
+
 }
 
 selectGWType() {
@@ -181,6 +241,24 @@ selectGWType() {
     ;;
   *) echo "invalid option $REPLY" ;;
   esac
+}
+
+selectRGType() {
+  retroGoSelection="${1,,}"
+
+  case "$retroGoSelection" in
+  "" | "original")
+    RETROGO="https://github.com/kbeckmann/game-and-watch-retro-go"
+    ;;
+  "newui")
+    RETROGO="https://github.com/olderzeus/game-and-watch-retro-go"
+    ;;
+  "quit")
+    exit
+    ;;
+  *) echo "invalid option $REPLY" ;;
+  esac
+  installRetroGo "$RETROGO"
 }
 
 selectDebugger() {
@@ -350,10 +428,44 @@ Mario is the default:"
   echo "You choose $DEVICE as your Game & Watch"
 }
 
-if [ "$1" == "--h" ] || [[ ! ${adpArgs[*]} =~ $1 ]] || [[ ! ${devArg[*]} =~ $2 ]] || [[ ! ${chpArg[*]} =~ $3 ]]; then
-  helptext
+retroGoSelectionMenu() {
+  echo ""
+  echo "Please select your Game & Watch type.
+Original is the default:"
+  echo ""
+
+  rg=$(optionsDefaultValue "${retroGoVersion[@]}")
+
+  selectRGType "$rg"
+  echo ""
+  echo "You choose $DEVICE as your Game & Watch"
+}
+
+case "$1" in
+"-h" | "--help") # display Help
+  helpText
+  exit
+  ;;
+"-r" | "--r") # Check Rom dir
+  romChecker
   exit 1
-fi
+  ;;
+"-b" | "--backup") # Backup flash dumps
+  backupIntFlashFolder
+  exit 1
+  ;;
+"-c" | "--clean") # Clean repository
+  cleanDir
+  exit 1
+  ;;
+*) # Invalid option
+  if [[ ! ${adpArgs[*]} =~ $1 ]] || [[ ! ${devArg[*]} =~ $2 ]] || [[ ! ${chpArg[*]} =~ $3 ]]; then
+    helpText
+    exit 1
+  fi
+  ;;
+esac
+
 
 if [ -n "${1}" ]; then
   selectDebugger "${1}"
@@ -368,7 +480,7 @@ if [ -n "${3}" ]; then
 fi
 echo ""
 
-[ -f "remove_me_after_first_run" ] && getRequirements
+[ ! -d "$gwB" ] || [ ! -d "$gwP" ] || [ ! -d "$gwR" ] && getRequirements
 
 [ -z "${DEVICE}" ] && deviceSelectionMenu
 [ -z "${ADAPTER}" ] && adapterSelectionMenu
